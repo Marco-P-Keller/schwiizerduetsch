@@ -30,6 +30,8 @@ targets:
       path: Schwiizerduetsch/Resources/Info.plist
       properties:
         CFBundleDisplayName: Grüezi
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         CFBundleDevelopmentRegion: de
         CFBundleLocalizations: [de, en]
         LSApplicationCategoryType: public.app-category.education

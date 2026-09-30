@@ -6,3 +6,5 @@ xcuserdata/
 *.ipa
 *.xcarchive
 Schwiizerduetsch.xcodeproj/
+Store/screens/raw/
+build/
