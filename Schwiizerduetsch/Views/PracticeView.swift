@@ -95,6 +95,12 @@ struct PracticeView: View {
             }
             .background(Theme.bg.ignoresSafeArea())
             .navigationTitle(tr("Üben", "Practice"))
+            .navigationDestination(isPresented: $showQuiz) { QuizView() }
+            .onAppear {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("-quiz") { showQuiz = true }
+                #endif
+            }
         }
         .fullScreenCover(item: $session) { s in LessonView(lesson: s, mode: .practice) }
     }
@@ -199,6 +205,11 @@ struct QuizView: View {
         .navigationTitle(tr("Swissness-Quiz", "Swissness quiz"))
         .navigationBarTitleDisplayMode(.inline)
         .animation(.easeInOut, value: done)
+        .onAppear {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-quizdone"), !done { score = 8; finish() }
+            #endif
+        }
     }
 
     private var question: some View {

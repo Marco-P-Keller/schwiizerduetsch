@@ -72,6 +72,7 @@ struct ChoiceExercise: View {
         for p in Self.distractors(for: phrase, count: 3) {
             let t = texts(p)
             if !opts.contains(t) { opts.append(t) }
+            if opts.count == 4 { break }
         }
         _options = State(initialValue: opts.shuffled())
     }
@@ -235,9 +236,12 @@ struct BuildExercise: View {
         Text(t.text)
             .font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink)
             .padding(.horizontal, 14).padding(.vertical, 10)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Theme.card)
+                    .shadow(color: Theme.line, radius: 0, y: 3)
+            )
             .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.line, lineWidth: 2))
-            .shadow(color: Theme.line, radius: 0, y: 3)
             .accessibilityAddTraits(.isButton)
     }
 

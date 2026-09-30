@@ -9,5 +9,5 @@ xcrun simctl terminate $SIM com.connexa.schweizerdeutsch 2>/dev/null
 xcrun simctl install $SIM "$APP"
 xcrun simctl status_bar $SIM override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3 2>/dev/null
 xcrun simctl launch $SIM com.connexa.schweizerdeutsch "$@" >/dev/null
-sleep 3.5
+sleep 6
 xcrun simctl io $SIM screenshot "$OUT" 2>&1 | tail -1

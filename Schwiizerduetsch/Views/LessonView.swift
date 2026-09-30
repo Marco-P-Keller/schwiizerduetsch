@@ -31,6 +31,23 @@ final class LessonModel: ObservableObject {
         self.lesson = lesson
         self.mode = mode
         self.steps = Self.plan(lesson: lesson, mode: mode)
+        #if DEBUG
+        // Screenshot helper: `-kind choice|listen|build|match` starts on that exercise type.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "-kind"), i + 1 < args.count {
+            let want = args[i + 1]
+            let pick = steps.first { step in
+                switch step.kind {
+                case .choice(_, let k): return (want == "listen" && k == .listen) || (want == "choice" && k == .trToCh)
+                case .build: return want == "build"
+                case .match: return want == "match"
+                case .learn: return false
+                }
+            }
+            if let pick { steps = [pick] + steps.filter { $0.id != pick.id } }
+            self.index = 0
+        }
+        #endif
     }
 
     static func plan(lesson: Lesson, mode: LessonMode) -> [Step] {
