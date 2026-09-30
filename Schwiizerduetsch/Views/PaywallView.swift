@@ -19,30 +19,40 @@ struct PaywallView: View {
     var body: some View {
         ZStack(alignment: .top) {
             Theme.bg.ignoresSafeArea()
+            MountainScene().frame(height: 330).ignoresSafeArea(edges: .top)
             ScrollView {
-                VStack(spacing: 22) {
+                VStack(spacing: 0) {
                     hero
-                    benefits
-                    plans
-                    Color.clear.frame(height: 200)
+                    VStack(spacing: 22) {
+                        benefits
+                        plans
+                        Color.clear.frame(height: 190)
+                    }
+                    .padding(.horizontal, 20).padding(.top, 24)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        Theme.bg.clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous))
+                            .shadow(color: .black.opacity(0.12), radius: 24, y: -6)
+                    )
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 56)
             }
             .scrollIndicators(.hidden)
 
             HStack {
                 Button { dismiss() } label: {
-                    Image(systemName: "xmark").font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Theme.muted)
-                        .frame(width: 36, height: 36)
-                        .background(Theme.card, in: Circle())
-                        .overlay(Circle().stroke(Theme.line, lineWidth: 1.5))
+                    Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: 38, height: 38)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .background(Color.black.opacity(0.12), in: Circle())
+                        .overlay(Circle().strokeBorder(.white.opacity(0.3), lineWidth: 1))
                 }
                 .accessibilityLabel(tr("Schliessen", "Close"))
                 Spacer()
                 Button(tr("Wiederherstellen", "Restore")) { Task { await purchases.restore() } }
-                    .font(.rounded(.subheadline, .bold)).foregroundStyle(Theme.muted)
+                    .font(.ui(.subheadline, .bold)).foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 9)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(Color.black.opacity(0.12), in: Capsule())
             }
             .padding(.horizontal, 16).padding(.top, 8)
         }
@@ -61,36 +71,35 @@ struct PaywallView: View {
     // MARK: Header
 
     private var hero: some View {
-        VStack(spacing: 14) {
-            ZStack {
-                Circle().fill(LinearGradient(colors: [Color(hex: 0xFF3B47), Color(hex: 0xC8101E)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 96, height: 96)
-                    .shadow(color: Theme.red.opacity(0.35), radius: 18, y: 8)
-                Text("🏔️").font(.system(size: 50))
-            }
-            Text(tr("Schwiizerdüütsch ohne Limit", "Swiss German without limits"))
-                .font(.rounded(size: 30, .heavy)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
+        VStack(spacing: 10) {
+            Spacer()
+            Text(tr("Schwiizerdüütsch\nohne Limit", "Swiss German\nwithout limits"))
+                .font(.display(38, .heavy)).foregroundStyle(.white).multilineTextAlignment(.center)
+                .shadow(color: .black.opacity(0.22), radius: 12, y: 4)
             Text(tr("Schalte alle Kapitel frei und sprich bald wie ein:e Einheimische:r.", "Unlock every chapter and soon talk like a local."))
-                .font(.rounded(.body)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                .font(.ui(.subheadline, .semibold)).foregroundStyle(.white.opacity(0.95)).multilineTextAlignment(.center)
+                .padding(.horizontal, 30)
+            Spacer().frame(height: 26)
         }
+        .frame(height: 290)
     }
 
     private var benefits: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            benefit("books.vertical.fill", trf("Alle %d Kapitel · %d Ausdrücke", "All %d chapters · %d phrases", Curriculum.units.count, Curriculum.allPhrases.count))
-            benefit("map.fill", tr("Dialekt-Explorer: Züri, Bärn & Basel", "Dialect explorer: Zürich, Bern & Basel"))
-            benefit("bolt.heart.fill", tr("Smarte Wiederholung für deine Fehler", "Smart review for your mistakes"))
-            benefit("text.book.closed.fill", tr("Vollständiges Phrasebook mit Favoriten", "Full phrasebook with favourites"))
-            benefit("arrow.triangle.2.circlepath", tr("Alle künftigen Updates inklusive", "All future updates included"))
+        VStack(alignment: .leading, spacing: 16) {
+            benefit("books.vertical.fill", Theme.red, trf("Alle %d Kapitel · %d Ausdrücke", "All %d chapters · %d phrases", Curriculum.units.count, Curriculum.allPhrases.count))
+            benefit("map.fill", Theme.blue, tr("Dialekt-Explorer: Züri, Bärn & Basel", "Dialect explorer: Zürich, Bern & Basel"))
+            benefit("bolt.heart.fill", Theme.orange, tr("Smarte Wiederholung für deine Fehler", "Smart review for your mistakes"))
+            benefit("text.book.closed.fill", Theme.green, tr("Vollständiges Phrasebook mit Favoriten", "Full phrasebook with favourites"))
+            benefit("arrow.triangle.2.circlepath", Color(hex: 0x8E5CF7), tr("Alle künftigen Updates inklusive", "All future updates included"))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .card(padding: 18)
+        .card(padding: 20)
     }
 
-    private func benefit(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).foregroundStyle(Theme.red).frame(width: 26)
-            Text(text).font(.rounded(.subheadline, .semibold)).foregroundStyle(Theme.ink)
+    private func benefit(_ icon: String, _ tint: Color, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            IconBadge(systemName: icon, tint: tint, size: 38)
+            Text(text).font(.ui(.subheadline, .semibold)).foregroundStyle(Theme.ink)
             Spacer(minLength: 0)
         }
     }
@@ -102,12 +111,12 @@ struct PaywallView: View {
         if purchases.products.isEmpty && ProcessInfo.processInfo.arguments.contains("-mockprices") {
             return [
                 PlanInfo(id: PurchaseManager.yearlyID, title: tr("Jahr", "Yearly"),
-                         detail: trf("%d Tage gratis, danach %@ / Jahr", "%d days free, then %@ / year", 7, "CHF 29.90") + "\n" + trf("nur %@ pro Monat", "only %@ per month", "CHF 2.49"),
+                         detail: trf("%d Tage gratis, danach %@ / Jahr", "%d days free, then %@ / year", 7, "CHF 24.90") + "\n" + trf("nur %@ pro Monat", "only %@ per month", "CHF 2.08"),
                          badge: trf("SPARE %d%%", "SAVE %d%%", 65), trialDays: 7),
                 PlanInfo(id: PurchaseManager.lifetimeID, title: tr("Für immer", "Lifetime"),
-                         detail: trf("Einmalig %@ · kein Abo", "One-time %@ · no subscription", "CHF 59.90"), badge: nil, trialDays: nil),
+                         detail: trf("Einmalig %@ · kein Abo", "One-time %@ · no subscription", "CHF 44.90"), badge: nil, trialDays: nil),
                 PlanInfo(id: PurchaseManager.monthlyID, title: tr("Monat", "Monthly"),
-                         detail: trf("%@ / Monat", "%@ / month", "CHF 6.90"), badge: nil, trialDays: nil),
+                         detail: trf("%@ / Monat", "%@ / month", "CHF 5.90"), badge: nil, trialDays: nil),
             ]
         }
         #endif
@@ -126,9 +135,9 @@ struct PaywallView: View {
         } else {
             VStack(spacing: 12) {
                 Text(tr("Die Preise konnten nicht geladen werden.", "Prices couldn't be loaded."))
-                    .font(.rounded(.subheadline)).foregroundStyle(Theme.muted)
+                    .font(.ui(.subheadline)).foregroundStyle(Theme.muted)
                 Button(tr("Nochmals versuchen", "Try again")) { Task { await purchases.load() } }
-                    .font(.rounded(.headline, .bold))
+                    .font(.ui(.headline, .bold))
             }
             .frame(maxWidth: .infinity).padding(.vertical, 20)
         }
@@ -179,32 +188,33 @@ struct PaywallView: View {
     private func planCard(_ p: PlanInfo) -> some View {
         let selected = selectedID == p.id
         return Button {
-            withAnimation(.spring(response: 0.3)) { selectedID = p.id }
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { selectedID = p.id }
             UISelectionFeedbackGenerator().selectionChanged()
         } label: {
             HStack(spacing: 14) {
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.title2).foregroundStyle(selected ? Theme.red : Theme.line)
-                VStack(alignment: .leading, spacing: 3) {
+                ZStack {
+                    Circle().strokeBorder(selected ? Theme.red : Theme.line, lineWidth: 2).frame(width: 26, height: 26)
+                    if selected { Circle().fill(Theme.red).frame(width: 14, height: 14).transition(.scale) }
+                }
+                VStack(alignment: .leading, spacing: 4) {
                     HStack(spacing: 8) {
-                        Text(p.title).font(.rounded(.headline, .heavy)).foregroundStyle(Theme.ink)
+                        Text(p.title).font(.ui(.headline, .heavy)).foregroundStyle(Theme.ink)
                         if let badge = p.badge {
-                            Text(badge)
-                                .font(.rounded(size: 10, .heavy)).foregroundStyle(.white)
-                                .padding(.horizontal, 7).padding(.vertical, 3)
+                            Text(badge).font(.ui(size: 10, .heavy)).tracking(0.5).foregroundStyle(.white)
+                                .padding(.horizontal, 8).padding(.vertical, 3)
                                 .background(Theme.green, in: Capsule())
                         }
                     }
-                    Text(p.detail).font(.rounded(.footnote)).foregroundStyle(Theme.muted)
-                        .multilineTextAlignment(.leading)
+                    Text(p.detail).font(.ui(.footnote)).foregroundStyle(Theme.muted).multilineTextAlignment(.leading)
                 }
                 Spacer(minLength: 0)
             }
             .padding(16)
-            .background(selected ? Theme.red.opacity(0.07) : Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(selected ? Theme.red : Theme.line, lineWidth: selected ? 2.5 : 1.5))
+            .background(selected ? Theme.red.opacity(0.06) : Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(selected ? Theme.red : Theme.line, lineWidth: selected ? 2.5 : 1.2))
+            .shadow(color: selected ? Theme.red.opacity(0.18) : .black.opacity(0.04), radius: 14, y: 6)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OptionPressStyle())
         .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -236,28 +246,29 @@ struct PaywallView: View {
 
             if let p = selectedPlan, p.id == PurchaseManager.yearlyID, p.trialDays != nil {
                 Label(tr("Keine Zahlung jetzt · jederzeit kündbar", "No payment now · cancel anytime"), systemImage: "checkmark.shield.fill")
-                    .font(.rounded(.footnote, .semibold)).foregroundStyle(Theme.green)
+                    .font(.ui(.footnote, .semibold)).foregroundStyle(Theme.green)
             }
             Text(tr("Abos verlängern sich automatisch, wenn sie nicht mindestens 24 Stunden vor Ablauf in den Apple-ID-Einstellungen gekündigt werden. Die Zahlung erfolgt über deine Apple-ID.",
                     "Subscriptions renew automatically unless cancelled at least 24 hours before the end of the period in your Apple ID settings. Payment is charged to your Apple ID."))
-                .font(.rounded(size: 10)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                .font(.ui(size: 10)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             HStack(spacing: 18) {
                 Link(tr("Nutzungsbedingungen", "Terms of Use"), destination: AppLinks.terms)
                 Link(tr("Datenschutz", "Privacy Policy"), destination: AppLinks.privacy)
             }
-            .font(.rounded(.caption, .semibold)).foregroundStyle(Theme.muted)
+            .font(.ui(.caption, .semibold)).foregroundStyle(Theme.muted)
         }
-        .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 6)
+        .padding(.horizontal, 20).padding(.top, 14).padding(.bottom, 6)
         .background(.regularMaterial)
+        .overlay(alignment: .top) { Rectangle().fill(Theme.line.opacity(0.6)).frame(height: 0.5) }
     }
 
     private var celebration: some View {
         ZStack {
-            Theme.bg.opacity(0.96).ignoresSafeArea()
+            Theme.bg.opacity(0.97).ignoresSafeArea()
             VStack(spacing: 14) {
-                Text("🎉").font(.system(size: 80))
-                Text(tr("Willkommen bei Premium!", "Welcome to Premium!")).font(.rounded(.title, .heavy)).foregroundStyle(Theme.ink)
-                Text(tr("Alle Kapitel sind freigeschaltet.", "All chapters are unlocked.")).font(.rounded(.body)).foregroundStyle(Theme.muted)
+                Text("🎉").font(.system(size: 84))
+                Text(tr("Willkommen bei Premium!", "Welcome to Premium!")).font(.display(32, .heavy)).foregroundStyle(Theme.ink)
+                Text(tr("Alle Kapitel sind freigeschaltet.", "All chapters are unlocked.")).font(.ui(.body)).foregroundStyle(Theme.muted)
             }
             ConfettiView()
         }

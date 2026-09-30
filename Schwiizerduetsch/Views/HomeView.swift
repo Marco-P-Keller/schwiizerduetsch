@@ -1,5 +1,17 @@
 import SwiftUI
 
+extension UIColor {
+    func darkened(_ amount: CGFloat) -> UIColor {
+        var h: CGFloat = 0, s: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        getHue(&h, saturation: &s, brightness: &b, alpha: &a)
+        return UIColor(hue: h, saturation: min(1, s * 1.05), brightness: b * (1 - amount), alpha: a)
+    }
+}
+
+extension Color {
+    func shaded(_ amount: CGFloat) -> Color { Color(UIColor(self).darkened(amount)) }
+}
+
 struct HomeView: View {
     @EnvironmentObject var store: ProgressStore
     @EnvironmentObject var purchases: PurchaseManager
@@ -7,28 +19,44 @@ struct HomeView: View {
     @State private var activeLesson: Lesson?
     @State private var showStreak = false
 
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: .now) {
+        case 5..<11: return "Guete Morge"
+        case 11..<17: return "Grüezi"
+        default: return "Guete Abig"
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    StatsBar(showStreak: $showStreak)
-                    ContinueCard(start: start)
-                    PhraseOfTheDayCard()
-                    ForEach(Array(Curriculum.units.enumerated()), id: \.element.id) { idx, unit in
-                        UnitSection(unit: unit, index: idx, start: start)
+            ZStack(alignment: .top) {
+                Theme.bg.ignoresSafeArea()
+                MountainScene()
+                    .frame(height: 360)
+                    .ignoresSafeArea(edges: .top)
+
+                ScrollView {
+                    VStack(spacing: 0) {
+                        header
+                        VStack(spacing: 26) {
+                            ContinueCard(start: start)
+                            PhraseOfTheDayCard()
+                            LearningPath(start: start)
+                            Text(tr("Weitere Kapitel folgen mit Updates. 🏔️", "More chapters coming with updates. 🏔️"))
+                                .font(.ui(.footnote)).foregroundStyle(Theme.muted).padding(.top, 4)
+                        }
+                        .padding(.horizontal, 20).padding(.top, 26).padding(.bottom, 40)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            Theme.bg.clipShape(UnevenRoundedRectangle(topLeadingRadius: 34, topTrailingRadius: 34, style: .continuous))
+                                .shadow(color: .black.opacity(0.12), radius: 24, y: -6)
+                        )
                     }
-                    Text(tr("Weitere Kapitel folgen mit Updates. 🏔️", "More chapters coming with updates. 🏔️"))
-                        .font(.rounded(.footnote))
-                        .foregroundStyle(Theme.muted)
-                        .padding(.top, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.bottom, 32)
+                .scrollIndicators(.hidden)
             }
-            .background(Theme.bg.ignoresSafeArea())
-            .navigationTitle("Schwiizerdüütsch")
-            .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showStreak) { StreakSheet().presentationDetents([.medium]) }
+            .toolbar(.hidden, for: .navigationBar)
+            .sheet(isPresented: $showStreak) { StreakSheet().presentationDetents([.medium]).presentationCornerRadius(32) }
             .onAppear {
                 #if DEBUG
                 let args = ProcessInfo.processInfo.arguments
@@ -43,67 +71,58 @@ struct HomeView: View {
         }
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                Button { showStreak = true } label: {
+                    GlassPill(systemName: "flame.fill", tint: store.studiedToday ? Theme.gold : .white.opacity(0.7), text: "\(store.streak)")
+                }
+                .buttonStyle(.plain)
+                GlassPill(systemName: "bolt.fill", tint: Theme.gold, text: "\(store.state.xp)")
+                Spacer()
+                GoalRing(progress: store.goalProgress, track: .white.opacity(0.28), fill: .white)
+                    .frame(width: 42, height: 42)
+                    .overlay(Text("\(store.todayXP)").font(.numeric(12)).foregroundStyle(.white))
+                    .accessibilityLabel(tr("Tagesziel", "Daily goal"))
+                    .accessibilityValue("\(store.todayXP) / \(store.state.dailyGoalXP) XP")
+            }
+            Spacer(minLength: 0)
+            Text(greeting)
+                .font(.display(44, .heavy)).foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.18), radius: 10, y: 3)
+            Text(store.studiedToday
+                 ? tr("Schön, bisch hüt scho debii.", "Nice – you've already learned today.")
+                 : tr("Was lehre mir hüt?", "What shall we learn today?"))
+                .font(.ui(.subheadline, .semibold)).foregroundStyle(.white.opacity(0.92))
+                .padding(.top, 2)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8).padding(.bottom, 34)
+        .frame(height: 250)
+    }
+
     private func isLocked(_ unit: Unit) -> Bool { !unit.isFree && !purchases.isPremium }
 
     func start(_ lesson: Lesson) {
         guard let unit = Curriculum.unit(lesson.unitID) else { return }
-        if isLocked(unit) {
-            router.showPaywall("locked-\(unit.id)")
-        } else {
-            activeLesson = lesson
-        }
+        if isLocked(unit) { router.showPaywall("locked-\(unit.id)") } else { activeLesson = lesson }
     }
 }
 
-
-// MARK: - Stats bar
-
-struct StatsBar: View {
-    @EnvironmentObject var store: ProgressStore
-    @Binding var showStreak: Bool
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Button { showStreak = true } label: {
-                pill(icon: "flame.fill", color: store.studiedToday ? Theme.orange : Theme.muted, text: "\(store.streak)")
-            }
-            .buttonStyle(.plain)
-            pill(icon: "bolt.fill", color: Theme.gold, text: "\(store.state.xp) XP")
-            Spacer()
-            GoalRing(progress: store.goalProgress)
-                .frame(width: 44, height: 44)
-                .overlay(
-                    Text("\(store.todayXP)")
-                        .font(.rounded(size: 12, .bold))
-                        .foregroundStyle(Theme.ink)
-                )
-                .accessibilityLabel(tr("Tagesziel", "Daily goal"))
-                .accessibilityValue("\(store.todayXP) / \(store.state.dailyGoalXP) XP")
-        }
-        .padding(.top, 8)
-    }
-
-    private func pill(icon: String, color: Color, text: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: icon).foregroundStyle(color)
-            Text(text).font(.rounded(.subheadline, .bold)).foregroundStyle(Theme.ink)
-        }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(Theme.card, in: Capsule())
-        .overlay(Capsule().stroke(Theme.line, lineWidth: 1.5))
-    }
-}
+// MARK: - Goal ring & streak
 
 struct GoalRing: View {
     var progress: Double
+    var track: Color = Theme.line
+    var fill: Color = Theme.red
     var body: some View {
         ZStack {
-            Circle().stroke(Theme.line, lineWidth: 5)
+            Circle().stroke(track, lineWidth: 5)
             Circle()
                 .trim(from: 0, to: max(0.001, progress))
-                .stroke(progress >= 1 ? Theme.green : Theme.red, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .stroke(progress >= 1 ? Theme.green : fill, style: StrokeStyle(lineWidth: 5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.spring, value: progress)
+                .animation(.spring(response: 0.6), value: progress)
         }
     }
 }
@@ -113,23 +132,21 @@ struct StreakSheet: View {
     var body: some View {
         VStack(spacing: 18) {
             Text("🔥").font(.system(size: 64))
-            Text(trf("%d Tage Serie", "%d day streak", store.streak))
-                .font(.rounded(.title, .heavy))
+            Text(trf("%d Tage Serie", "%d day streak", store.streak)).font(.display(30, .heavy)).foregroundStyle(Theme.ink)
             Text(store.studiedToday
                  ? tr("Super – du hast heute schon gelernt!", "Great – you've already learned today!")
                  : tr("Mach heute eine Lektion, damit deine Serie weiterläuft.", "Do a lesson today to keep your streak going."))
-                .font(.rounded(.subheadline))
-                .foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center)
+                .font(.ui(.subheadline)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             HStack(spacing: 10) {
                 ForEach(Array(store.weekActivity.enumerated()), id: \.offset) { _, d in
-                    VStack(spacing: 6) {
+                    VStack(spacing: 7) {
                         ZStack {
-                            Circle().fill(d.active ? Theme.orange : Theme.soft).frame(width: 34, height: 34)
-                            if d.active { Image(systemName: "checkmark").font(.system(size: 14, weight: .bold)).foregroundStyle(.white) }
+                            Circle().fill(d.active ? AnyShapeStyle(LinearGradient(colors: [Theme.gold, Theme.orange], startPoint: .top, endPoint: .bottom)) : AnyShapeStyle(Theme.soft))
+                                .frame(width: 36, height: 36)
+                            if d.active { Image(systemName: "checkmark").font(.system(size: 14, weight: .black)).foregroundStyle(.white) }
                         }
-                        .overlay(Circle().stroke(d.isToday ? Theme.red : .clear, lineWidth: 2).padding(-3))
-                        Text(d.label).font(.rounded(.caption2, .semibold)).foregroundStyle(Theme.muted)
+                        .overlay(Circle().stroke(d.isToday ? Theme.red : .clear, lineWidth: 2).padding(-4))
+                        Text(d.label).font(.ui(.caption2, .semibold)).foregroundStyle(Theme.muted)
                     }
                 }
             }
@@ -148,39 +165,37 @@ struct ContinueCard: View {
 
     var body: some View {
         if let lesson = store.nextLesson, let unit = Curriculum.unit(lesson.unitID) {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 12) {
-                    Text(unit.emoji).font(.system(size: 34))
-                        .frame(width: 58, height: 58)
-                        .background(.white.opacity(0.22), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(store.state.completedLessons.isEmpty ? tr("Los geht's!", "Let's go!") : tr("Weiter geht's", "Continue"))
-                            .font(.rounded(.caption, .bold)).textCase(.uppercase).opacity(0.85)
-                        Text(unit.title).font(.rounded(.title3, .heavy))
+            ZStack(alignment: .topTrailing) {
+                Text(unit.emoji).font(.system(size: 104)).opacity(0.2).rotationEffect(.degrees(12)).offset(x: 20, y: -34)
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(store.state.completedLessons.isEmpty ? tr("Los geht's", "Let's go") : tr("Weiter geht's", "Continue")).eyebrow(.white.opacity(0.85))
+                    Text(unit.title).font(.display(28, .heavy)).foregroundStyle(.white).lineLimit(2)
+                    HStack(spacing: 10) {
+                        ProgressBar(value: store.progress(of: unit), color: .white, track: .white.opacity(0.28), height: 8)
                         Text(trf("Lektion %d von %d", "Lesson %d of %d", lesson.index + 1, unit.lessons.count))
-                            .font(.rounded(.footnote, .medium)).opacity(0.85)
+                            .font(.ui(.footnote, .semibold)).foregroundStyle(.white.opacity(0.9)).fixedSize()
                     }
-                    Spacer(minLength: 0)
+                    Button { start(lesson) } label: { Text(tr("Lektion starten", "Start lesson")).textCase(.uppercase) }
+                        .buttonStyle(ChunkyButtonStyle(color: .white, deep: Color.white.opacity(0.86), textColor: unit.color.shaded(0.15)))
+                        .padding(.top, 4)
                 }
-                Button { start(lesson) } label: {
-                    Text(tr("Lektion starten", "Start lesson")).textCase(.uppercase)
-                }
-                .buttonStyle(ChunkyButtonStyle(color: .white, deep: .white.opacity(0.55), textColor: unit.color))
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .foregroundStyle(.white)
-            .padding(18)
+            .padding(22)
             .background(
-                LinearGradient(colors: [unit.color, unit.color.opacity(0.75)], startPoint: .topLeading, endPoint: .bottomTrailing),
-                in: RoundedRectangle(cornerRadius: 24, style: .continuous)
+                LinearGradient(colors: [unit.color, unit.color.shaded(0.32)], startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 30, style: .continuous)
             )
+            .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+            .shadow(color: unit.color.opacity(0.35), radius: 22, y: 12)
         } else {
             VStack(spacing: 8) {
-                Text("🏆").font(.system(size: 44))
-                Text(tr("Alles geschafft!", "All done!")).font(.rounded(.title3, .heavy))
+                Text("🏆").font(.system(size: 48))
+                Text(tr("Alles geschafft!", "All done!")).font(.display(24))
                 Text(tr("Du hast alle Kapitel abgeschlossen. Wiederhole im Üben-Tab!", "You've completed every chapter. Review in the Practice tab!"))
-                    .font(.rounded(.subheadline)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                    .font(.ui(.subheadline)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity).card()
+            .frame(maxWidth: .infinity).card(padding: 24)
         }
     }
 }
@@ -188,95 +203,130 @@ struct ContinueCard: View {
 // MARK: - Phrase of the day
 
 struct PhraseOfTheDayCard: View {
-    @EnvironmentObject var store: ProgressStore
-    @ObservedObject private var speech = SpeechService.shared
     let phrase = Curriculum.phraseOfTheDay()
 
     var body: some View {
-        HStack(spacing: 14) {
-            VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
                 Label(tr("Wort vom Tag", "Phrase of the day"), systemImage: "sun.max.fill")
-                    .font(.rounded(.caption, .bold)).foregroundStyle(Theme.gold).textCase(.uppercase)
-                Text(phrase.ch).font(.rounded(.title2, .heavy)).foregroundStyle(Theme.ink)
-                Text(phrase.translation).font(.rounded(.subheadline)).foregroundStyle(Theme.muted)
+                    .font(.ui(.caption, .bold)).tracking(1).textCase(.uppercase).foregroundStyle(Theme.gold)
+                Spacer()
+                if SpeechService.shared.hasRecording(for: phrase.ch) { SpeakButton(text: phrase.ch, size: 36) }
+                ShareLink(item: "«\(phrase.ch)» = \(phrase.translation) 🇨🇭 \(AppLinks.appStore.absoluteString)") {
+                    Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .semibold)).foregroundStyle(Theme.muted)
+                        .frame(width: 36, height: 36).background(Theme.soft, in: Circle())
+                }
+                .accessibilityLabel(tr("Teilen", "Share"))
             }
-            Spacer(minLength: 0)
-            Button { SpeechService.shared.speak(phrase.ch) } label: {
-                Image(systemName: "speaker.wave.2.fill")
-                    .font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
-                    .frame(width: 50, height: 50)
-                    .background(Theme.blue, in: Circle())
-            }
-            .accessibilityLabel(tr("Anhören", "Listen"))
+            Text("«\(phrase.ch)»").font(.display(28, .bold)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
+            Text(phrase.translation).font(.ui(.subheadline)).foregroundStyle(Theme.muted)
         }
-        .card()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .card(padding: 20)
     }
 }
 
-// MARK: - Unit path
+// MARK: - Learning path
 
-struct UnitSection: View {
+struct LearningPath: View {
     @EnvironmentObject var store: ProgressStore
     @EnvironmentObject var purchases: PurchaseManager
-    let unit: Unit
-    let index: Int
     var start: (Lesson) -> Void
-
-    private var locked: Bool { !unit.isFree && !purchases.isPremium }
-    private let offsets: [CGFloat] = [0, 46, 66, 46, 0, -46, -66, -46]
+    private let offsets: [CGFloat] = [0, 54, 80, 54, 0, -54, -80, -54]
 
     var body: some View {
-        VStack(spacing: 22) {
-            header
-            let current = store.nextLesson?.id
-            ForEach(Array(unit.lessons.enumerated()), id: \.element.id) { i, lesson in
-                LessonNode(
-                    emoji: unit.emoji,
-                    color: unit.color,
-                    state: nodeState(lesson, current: current),
-                    title: trf("Lektion %d", "Lesson %d", i + 1)
-                ) { start(lesson) }
-                .offset(x: offsets[(index * 3 + i) % offsets.count])
+        let current = store.nextLesson?.id
+        VStack(spacing: 0) {
+            ForEach(Array(Curriculum.units.enumerated()), id: \.element.id) { idx, unit in
+                let locked = !unit.isFree && !purchases.isPremium
+                UnitBanner(unit: unit, index: idx, locked: locked)
+                    .padding(.top, idx == 0 ? 0 : 30)
+                    .padding(.bottom, 22)
+                ForEach(Array(unit.lessons.enumerated()), id: \.element.id) { i, lesson in
+                    let x = offsets[(idx * 3 + i) % offsets.count]
+                    if i > 0 {
+                        let prev = offsets[(idx * 3 + i - 1) % offsets.count]
+                        Connector(from: prev, to: x, color: unit.color.opacity(store.isCompleted(unit.lessons[i - 1]) ? 0.7 : 0.25))
+                    }
+                    LessonNode(
+                        emoji: unit.emoji, color: unit.color,
+                        state: state(lesson, locked: locked, current: current),
+                        title: trf("Lektion %d", "Lesson %d", i + 1)
+                    ) { start(lesson) }
+                    .offset(x: x)
+                }
             }
         }
     }
 
-    private func nodeState(_ lesson: Lesson, current: String?) -> LessonNode.NodeState {
+    private func state(_ lesson: Lesson, locked: Bool, current: String?) -> LessonNode.NodeState {
         if store.isCompleted(lesson) { return .done }
         if locked { return .locked }
         return lesson.id == current ? .current : .open
     }
+}
 
-    private var header: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(trf("Kapitel %d", "Chapter %d", index + 1))
-                        .font(.rounded(.caption, .bold)).textCase(.uppercase).opacity(0.85)
-                    if !unit.isFree {
-                        Text("PREMIUM")
-                            .font(.rounded(size: 10, .heavy))
-                            .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(.white.opacity(0.25), in: Capsule())
-                    }
-                }
-                Text(unit.title).font(.rounded(.title3, .heavy))
-                Text(unit.subtitle).font(.rounded(.footnote)).opacity(0.9)
+struct Connector: View {
+    let from: CGFloat
+    let to: CGFloat
+    let color: Color
+    var body: some View {
+        GeometryReader { g in
+            Path { p in
+                let mid = g.size.width / 2
+                p.move(to: CGPoint(x: mid + from, y: 0))
+                p.addCurve(to: CGPoint(x: mid + to, y: g.size.height),
+                           control1: CGPoint(x: mid + from, y: g.size.height * 0.65),
+                           control2: CGPoint(x: mid + to, y: g.size.height * 0.35))
             }
-            Spacer(minLength: 8)
-            if locked {
-                Image(systemName: "lock.fill").font(.title3)
-            } else {
-                Text("\(store.completedCount(in: unit))/\(unit.lessons.count)")
-                    .font(.rounded(.subheadline, .bold))
-                    .padding(.horizontal, 10).padding(.vertical, 6)
-                    .background(.white.opacity(0.22), in: Capsule())
+            .stroke(color, style: StrokeStyle(lineWidth: 5, lineCap: .round, dash: [0.1, 11]))
+        }
+        .frame(height: 36)
+        .accessibilityHidden(true)
+    }
+}
+
+struct UnitBanner: View {
+    @EnvironmentObject var store: ProgressStore
+    let unit: Unit
+    let index: Int
+    let locked: Bool
+
+    var body: some View {
+        ZStack(alignment: .trailing) {
+            Text(unit.emoji).font(.system(size: 92)).opacity(locked ? 0.12 : 0.26).rotationEffect(.degrees(-10)).offset(x: 10, y: 6)
+            HStack(alignment: .center, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 8) {
+                        Text(trf("Kapitel %d", "Chapter %d", index + 1)).eyebrow(.white.opacity(0.85))
+                        if !unit.isFree {
+                            Text("PREMIUM").font(.ui(size: 9, .heavy)).tracking(0.8)
+                                .padding(.horizontal, 7).padding(.vertical, 3)
+                                .background(.white.opacity(0.22), in: Capsule())
+                        }
+                    }
+                    Text(unit.title).font(.display(23, .heavy)).fixedSize(horizontal: false, vertical: true)
+                    Text(unit.subtitle).font(.ui(.footnote)).opacity(0.88)
+                }
+                Spacer(minLength: 8)
+                if locked {
+                    Image(systemName: "lock.fill").font(.title3).padding(12).background(.white.opacity(0.2), in: Circle())
+                } else {
+                    Text("\(store.completedCount(in: unit))/\(unit.lessons.count)")
+                        .font(.numeric(14)).padding(.horizontal, 12).padding(.vertical, 7)
+                        .background(.white.opacity(0.2), in: Capsule())
+                }
             }
         }
         .foregroundStyle(.white)
-        .padding(16)
-        .background(unit.color, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .padding(.top, 8)
+        .padding(20)
+        .background(
+            LinearGradient(colors: locked ? [unit.color.opacity(0.55), unit.color.shaded(0.3).opacity(0.55)] : [unit.color, unit.color.shaded(0.3)],
+                           startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 26, style: .continuous)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 26, style: .continuous))
+        .shadow(color: unit.color.opacity(locked ? 0.1 : 0.3), radius: 16, y: 8)
         .accessibilityElement(children: .combine)
     }
 }
@@ -294,21 +344,28 @@ struct LessonNode: View {
         Button(action: action) {
             ZStack {
                 if state == .current {
-                    Circle().stroke(color.opacity(0.35), lineWidth: 6)
-                        .frame(width: 96, height: 96)
-                        .scaleEffect(pulse ? 1.08 : 0.96)
-                        .opacity(pulse ? 0.4 : 1)
+                    Circle().stroke(color.opacity(0.35), lineWidth: 5)
+                        .frame(width: 100, height: 100)
+                        .scaleEffect(pulse ? 1.12 : 0.94).opacity(pulse ? 0 : 1)
                 }
-                Circle().fill(deep).frame(width: 78, height: 78).offset(y: 5)
-                Circle().fill(fill).frame(width: 78, height: 78)
+                Circle().fill(fill).frame(width: 80, height: 80)
+                    .overlay(Circle().strokeBorder(rim, lineWidth: state == .open ? 3 : 0))
+                    .overlay(Circle().strokeBorder(LinearGradient(colors: [.white.opacity(state == .locked || state == .open ? 0 : 0.5), .clear], startPoint: .top, endPoint: .center), lineWidth: 1.5))
+                    .shadow(color: glow, radius: 14, y: 8)
                 icon
+                if state == .current {
+                    Text("START").font(.ui(size: 11, .heavy)).tracking(1)
+                        .foregroundStyle(color.shaded(0.2)).padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Theme.card, in: Capsule()).shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                        .offset(y: -58)
+                }
             }
-            .frame(width: 100, height: 100)
+            .frame(width: 104, height: 104)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(NodePressStyle())
         .onAppear {
             guard state == .current else { return }
-            withAnimation(.easeInOut(duration: 1.1).repeatForever(autoreverses: true)) { pulse = true }
+            withAnimation(.easeOut(duration: 1.5).repeatForever(autoreverses: false)) { pulse = true }
         }
         .accessibilityLabel(title)
         .accessibilityValue(stateLabel)
@@ -323,27 +380,38 @@ struct LessonNode: View {
         }
     }
 
-    private var fill: Color {
+    private var fill: AnyShapeStyle {
         switch state {
-        case .done: return Theme.gold
-        case .current, .open: return color
-        case .locked: return Theme.line
+        case .done: return AnyShapeStyle(LinearGradient(colors: [Color(hex: 0xFFC94D), Theme.goldDeep], startPoint: .top, endPoint: .bottom))
+        case .current: return AnyShapeStyle(LinearGradient(colors: [color, color.shaded(0.3)], startPoint: .top, endPoint: .bottom))
+        case .open: return AnyShapeStyle(Theme.card)
+        case .locked: return AnyShapeStyle(Theme.soft)
         }
     }
-    private var deep: Color {
+    private var rim: Color { state == .open ? color.opacity(0.5) : .clear }
+    private var glow: Color {
         switch state {
-        case .done: return Color(hex: 0xC98C12)
-        case .current, .open: return color.opacity(0.55)
-        case .locked: return Theme.muted.opacity(0.35)
+        case .done: return Theme.gold.opacity(0.45)
+        case .current: return color.opacity(0.45)
+        case .open: return .black.opacity(0.08)
+        case .locked: return .clear
         }
     }
 
     @ViewBuilder private var icon: some View {
         switch state {
         case .done: Image(systemName: "checkmark").font(.system(size: 30, weight: .black)).foregroundStyle(.white)
-        case .current: Image(systemName: "play.fill").font(.system(size: 30, weight: .black)).foregroundStyle(.white)
-        case .open: Text(emoji).font(.system(size: 32))
-        case .locked: Image(systemName: "lock.fill").font(.system(size: 26, weight: .bold)).foregroundStyle(Theme.muted)
+        case .current: Image(systemName: "play.fill").font(.system(size: 28, weight: .black)).foregroundStyle(.white).offset(x: 2)
+        case .open: Text(emoji).font(.system(size: 34))
+        case .locked: Image(systemName: "lock.fill").font(.system(size: 24, weight: .bold)).foregroundStyle(Theme.muted)
         }
+    }
+}
+
+struct NodePressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.93 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.65), value: configuration.isPressed)
     }
 }

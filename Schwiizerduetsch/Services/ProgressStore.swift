@@ -219,6 +219,13 @@ final class ProgressStore: ObservableObject {
     /// Launch argument used to generate App Store screenshots: `-demo` (add `-en` for English).
     private func applyLaunchArguments() {
         let args = ProcessInfo.processInfo.arguments
+        if args.contains("-onboarding") {
+            var fresh = State()
+            fresh.language = args.contains("-en") ? "en" : "de"
+            state = fresh
+            AppLanguage.current = language
+            return
+        }
         guard args.contains("-demo") else { return }
         var s = State()
         s.onboardingDone = true

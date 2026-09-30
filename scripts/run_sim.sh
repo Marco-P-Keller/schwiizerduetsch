@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Usage: scripts/run_sim.sh <out.png> [launch args...]
-SIM=E631CD4F-3293-4D70-A81F-453107BF207E
+SIM=${SIM:-5022875C-00A2-4C4D-8DC2-42CA6B87139F}
 OUT=$1; shift
 cd "$(dirname "$0")/.."
 xcodebuild -project Schwiizerduetsch.xcodeproj -scheme Schwiizerduetsch -destination "id=$SIM" -configuration Debug build CODE_SIGNING_ALLOWED=NO 2>&1 | grep -E "error:|BUILD FAILED" 

@@ -10,73 +10,86 @@ struct OnboardingView: View {
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
-            VStack(spacing: 0) {
-                if step > 0 {
+            if step == 0 {
+                welcome.transition(.opacity)
+            } else {
+                VStack(spacing: 0) {
                     HStack(spacing: 14) {
-                        Button { withAnimation { step -= 1 } } label: {
-                            Image(systemName: "chevron.left").font(.system(size: 18, weight: .bold)).foregroundStyle(Theme.muted)
-                                .frame(width: 36, height: 36)
+                        Button { withAnimation(.spring(response: 0.4)) { step -= 1 } } label: {
+                            Image(systemName: "chevron.left").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.muted)
+                                .frame(width: 38, height: 38).background(Theme.soft, in: Circle())
                         }
                         .accessibilityLabel(tr("Zurück", "Back"))
-                        ProgressBar(value: Double(step) / Double(lastStep), color: Theme.red)
+                        ProgressBar(value: Double(step) / Double(lastStep), color: Theme.red, height: 10)
                     }
                     .padding(.horizontal, 20).padding(.top, 8)
-                }
-                Group {
-                    switch step {
-                    case 0: welcome
-                    case 1: reasonStep
-                    case 2: levelStep
-                    case 3: goalStep
-                    case 4: reminderStep
-                    default: readyStep
+                    Group {
+                        switch step {
+                        case 1: reasonStep
+                        case 2: levelStep
+                        case 3: goalStep
+                        case 4: reminderStep
+                        default: readyStep
+                        }
                     }
+                    .id(step)
+                    .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
                 }
-                .transition(.asymmetric(insertion: .move(edge: .trailing).combined(with: .opacity), removal: .move(edge: .leading).combined(with: .opacity)))
-                .id(step)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: step)
+        .animation(.spring(response: 0.45, dampingFraction: 0.88), value: step)
+    }
+
+    // MARK: Welcome
+
+    private var welcome: some View {
+        VStack(spacing: 0) {
+            ZStack {
+                MountainScene().ignoresSafeArea(edges: .top)
+                VStack(spacing: 14) {
+                    Spacer()
+                    AppMark(size: 104)
+                    Text("Schwiizerdüütsch").font(.display(34, .heavy)).foregroundStyle(.white)
+                        .shadow(color: .black.opacity(0.2), radius: 10, y: 3)
+                    Spacer().frame(height: 46)
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            VStack(spacing: 22) {
+                Text(tr("Lerne Schweizerdeutsch – spielerisch, in 5 Minuten am Tag.",
+                        "Learn Swiss German – playfully, in 5 minutes a day."))
+                    .font(.ui(.title3, .semibold)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
+                    .padding(.horizontal, 12)
+                VStack(alignment: .leading, spacing: 14) {
+                    feature("text.bubble.fill", Theme.red, tr("Echte Alltagssätze – von Grüezi bis Fiirabig", "Real everyday phrases – from Grüezi to Fiirabig"))
+                    feature("map.fill", Theme.blue, tr("Zürcher, Berner & Basler Dialekt im Vergleich", "Zürich, Bern & Basel dialects compared"))
+                    feature("flame.fill", Theme.orange, tr("Serien, Tagesziele und kleine Erfolge", "Streaks, daily goals and small wins"))
+                }
+                Button { withAnimation { step = 1 } } label: { Text(tr("Los geht's", "Get started")).textCase(.uppercase) }
+                    .buttonStyle(.chunky)
+                Text(tr("Für Neuzuzüger, Partner, Feriengäste und Neugierige.", "For newcomers, partners, visitors and the curious."))
+                    .font(.ui(.footnote)).foregroundStyle(Theme.muted)
+            }
+            .padding(.horizontal, 24).padding(.top, 22).padding(.bottom, 10)
+            .background(
+                Theme.bg.clipShape(UnevenRoundedRectangle(topLeadingRadius: 32, topTrailingRadius: 32, style: .continuous))
+                    .shadow(color: .black.opacity(0.12), radius: 24, y: -6)
+                    .ignoresSafeArea(edges: .bottom)
+            )
+            .offset(y: -28)
+        }
+    }
+
+    private func feature(_ icon: String, _ tint: Color, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            IconBadge(systemName: icon, tint: tint, size: 42)
+            Text(text).font(.ui(.subheadline, .semibold)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+        }
     }
 
     // MARK: Steps
-
-    private var welcome: some View {
-        VStack(spacing: 20) {
-            Spacer()
-            ZStack {
-                RoundedRectangle(cornerRadius: 44, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(hex: 0xFF3B47), Color(hex: 0xC8101E)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 150, height: 150)
-                    .shadow(color: Theme.red.opacity(0.35), radius: 24, y: 12)
-                Text("ü").font(.system(size: 110, weight: .heavy, design: .rounded)).foregroundStyle(.white).offset(y: -4)
-            }
-            Text("Grüezi!").font(.rounded(size: 44, .heavy)).foregroundStyle(Theme.ink)
-            Text(tr("Lerne Schwiizerdüütsch – spielerisch, in 5 Minuten am Tag.",
-                    "Learn Swiss German – playfully, in 5 minutes a day."))
-                .font(.rounded(.title3, .medium)).foregroundStyle(Theme.muted)
-                .multilineTextAlignment(.center).padding(.horizontal, 28)
-            VStack(alignment: .leading, spacing: 12) {
-                feature("🎧", tr("Hör, wie es klingt", "Hear how it sounds"))
-                feature("🧩", tr("Übe mit Sätzen aus dem Alltag", "Practise real everyday phrases"))
-                feature("🗺️", tr("Entdecke Zürcher, Berner & Basler Dialekt", "Explore Zürich, Bern & Basel dialects"))
-            }
-            .padding(.top, 8)
-            Spacer()
-            Button { withAnimation { step = 1 } } label: { Text(tr("Los geht's", "Get started")).textCase(.uppercase) }
-                .buttonStyle(.chunky).padding(.horizontal, 24)
-            Text(tr("Für Neuzuzüger, Partner, Feriengäste und Neugierige.", "For newcomers, partners, visitors and the curious."))
-                .font(.rounded(.footnote)).foregroundStyle(Theme.muted).padding(.bottom, 8)
-        }
-    }
-
-    private func feature(_ emoji: String, _ text: String) -> some View {
-        HStack(spacing: 12) {
-            Text(emoji).font(.title2).frame(width: 40, height: 40)
-                .background(Theme.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-            Text(text).font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink)
-        }
-    }
 
     private var reasonStep: some View {
         choiceStep(
@@ -89,7 +102,7 @@ struct OnboardingView: View {
                 ("fun", "🧀", tr("Aus Neugier und Spass", "Curiosity and fun")),
             ],
             selected: store.state.reason
-        ) { store.state.reason = $0; withAnimation { step = 2 } }
+        ) { store.state.reason = $0; step = 2 }
     }
 
     private var levelStep: some View {
@@ -101,7 +114,7 @@ struct OnboardingView: View {
                 ("2", "🌳", tr("Ich verstehe vieles, spreche aber nicht", "I understand a lot but don't speak")),
             ],
             selected: "\(store.state.level)"
-        ) { store.state.level = Int($0) ?? 0; withAnimation { step = 3 } }
+        ) { store.state.level = Int($0) ?? 0; step = 3 }
     }
 
     private var goalStep: some View {
@@ -113,18 +126,21 @@ struct OnboardingView: View {
                 ("120", "🚀", tr("Intensiv · 4 Lektionen / Tag (~20 Min.)", "Intense · 4 lessons / day (~20 min)")),
             ],
             selected: "\(store.state.dailyGoalXP)"
-        ) { store.state.dailyGoalXP = Int($0) ?? 60; withAnimation { step = 4 } }
+        ) { store.state.dailyGoalXP = Int($0) ?? 60; step = 4 }
     }
 
     private var reminderStep: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             Spacer()
-            Text("🔔").font(.system(size: 72))
+            ZStack {
+                Circle().fill(Theme.gold.opacity(0.18)).frame(width: 120, height: 120)
+                Text("🔔").font(.system(size: 58))
+            }
             Text(tr("Wann soll ich dich erinnern?", "When should I remind you?"))
-                .font(.rounded(.title, .heavy)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
+                .font(.display(30, .heavy)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
             Text(tr("Wer täglich kurz lernt, bleibt am Ball. Du kannst das jederzeit ändern.",
                     "Short daily sessions keep you going. You can change this anytime."))
-                .font(.rounded(.body)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                .font(.ui(.body)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
             DatePicker("", selection: $reminderTime, displayedComponents: .hourAndMinute)
                 .datePickerStyle(.wheel).labelsHidden().frame(height: 130)
             Spacer()
@@ -136,12 +152,12 @@ struct OnboardingView: View {
                     store.state.reminderMinute = c.minute ?? 30
                     store.state.reminderEnabled = ok
                     if ok { await NotificationService.scheduleDailyReminders(hour: c.hour ?? 18, minute: c.minute ?? 30) }
-                    withAnimation { step = 5 }
+                    step = 5
                 }
             } label: { Text(tr("Erinnerung aktivieren", "Enable reminders")).textCase(.uppercase) }
                 .buttonStyle(.chunky)
-            Button(tr("Vielleicht später", "Maybe later")) { withAnimation { step = 5 } }
-                .font(.rounded(.subheadline, .bold)).foregroundStyle(Theme.muted).padding(.bottom, 8)
+            Button(tr("Vielleicht später", "Maybe later")) { step = 5 }
+                .font(.ui(.subheadline, .bold)).foregroundStyle(Theme.muted).padding(.bottom, 8)
         }
         .padding(.horizontal, 24)
     }
@@ -149,15 +165,15 @@ struct OnboardingView: View {
     private var readyStep: some View {
         VStack(spacing: 20) {
             Spacer()
-            Text("🇨🇭").font(.system(size: 80))
+            Text("🇨🇭").font(.system(size: 84)).shadow(color: .black.opacity(0.15), radius: 12, y: 8)
             Text(tr("Dein Lernpfad ist bereit!", "Your learning path is ready!"))
-                .font(.rounded(.title, .heavy)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
-            VStack(alignment: .leading, spacing: 12) {
-                summary("map.fill", trf("%d Kapitel · %d Ausdrücke", "%d chapters · %d phrases", Curriculum.units.count, Curriculum.allPhrases.count))
-                summary("target", trf("Tagesziel: %d XP", "Daily goal: %d XP", store.state.dailyGoalXP))
-                summary("gift.fill", tr("Kapitel 1 & 2 sind gratis", "Chapters 1 & 2 are free"))
+                .font(.display(32, .heavy)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
+            VStack(alignment: .leading, spacing: 16) {
+                summary("map.fill", Theme.blue, trf("%d Kapitel · %d Ausdrücke", "%d chapters · %d phrases", Curriculum.units.count, Curriculum.allPhrases.count))
+                summary("target", Theme.red, trf("Tagesziel: %d XP", "Daily goal: %d XP", store.state.dailyGoalXP))
+                summary("gift.fill", Theme.green, tr("Kapitel 1 & 2 sind gratis", "Chapters 1 & 2 are free"))
             }
-            .frame(maxWidth: .infinity, alignment: .leading).card(padding: 18)
+            .frame(maxWidth: .infinity, alignment: .leading).card(padding: 20)
             Spacer()
             Button { finish() } label: { Text(tr("Lernpfad starten", "Start learning")).textCase(.uppercase) }
                 .buttonStyle(.chunky)
@@ -165,10 +181,10 @@ struct OnboardingView: View {
         .padding(.horizontal, 24).padding(.bottom, 8)
     }
 
-    private func summary(_ icon: String, _ text: String) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon).foregroundStyle(Theme.red).frame(width: 26)
-            Text(text).font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink)
+    private func summary(_ icon: String, _ tint: Color, _ text: String) -> some View {
+        HStack(spacing: 14) {
+            IconBadge(systemName: icon, tint: tint, size: 38)
+            Text(text).font(.ui(.body, .semibold)).foregroundStyle(Theme.ink)
         }
     }
 
@@ -182,24 +198,32 @@ struct OnboardingView: View {
 
     private func choiceStep(title: String, options: [(String, String, String)], selected: String,
                             onSelect: @escaping (String) -> Void) -> some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text(title).font(.rounded(.title, .heavy)).foregroundStyle(Theme.ink).padding(.top, 24)
-            ForEach(options, id: \.0) { opt in
-                Button { onSelect(opt.0) } label: {
-                    HStack(spacing: 14) {
-                        Text(opt.1).font(.title)
-                        Text(opt.2).font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
-                        Spacer(minLength: 0)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(title).font(.display(30, .heavy)).foregroundStyle(Theme.ink).padding(.top, 26).padding(.bottom, 8)
+                ForEach(options, id: \.0) { opt in
+                    let isSel = opt.0 == selected
+                    Button {
+                        UISelectionFeedbackGenerator().selectionChanged()
+                        onSelect(opt.0)
+                    } label: {
+                        HStack(spacing: 14) {
+                            Text(opt.1).font(.system(size: 28)).frame(width: 52, height: 52)
+                                .background(Theme.soft, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            Text(opt.2).font(.ui(.body, .semibold)).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
+                            Spacer(minLength: 0)
+                            if isSel { Image(systemName: "checkmark.circle.fill").font(.title3).foregroundStyle(Theme.red) }
+                        }
+                        .padding(14)
+                        .background(isSel ? Theme.red.opacity(0.06) : Theme.card, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(isSel ? Theme.red : Theme.line, lineWidth: isSel ? 2 : 1.2))
+                        .shadow(color: .black.opacity(0.05), radius: 10, y: 5)
                     }
-                    .padding(16)
-                    .background(Theme.card, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .stroke(opt.0 == selected ? Theme.red : Theme.line, lineWidth: 2))
+                    .buttonStyle(OptionPressStyle())
                 }
-                .buttonStyle(.plain)
             }
-            Spacer()
+            .padding(.horizontal, 20).padding(.bottom, 30)
         }
-        .padding(.horizontal, 20)
+        .scrollIndicators(.hidden)
     }
 }

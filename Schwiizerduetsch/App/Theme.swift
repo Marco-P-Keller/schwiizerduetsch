@@ -14,81 +14,120 @@ extension Color {
     }
 }
 
+/// Design tokens. Swiss editorial: warm paper, deep ink, one confident red.
 enum Theme {
-    static let red = Color(hex: 0xE5202E)
-    static let redDeep = Color(hex: 0xB3121F)
-    static let green = Color(hex: 0x2FB36D)
-    static let greenDeep = Color(hex: 0x1F8F53)
-    static let gold = Color(hex: 0xF5B335)
-    static let blue = Color(hex: 0x2F80ED)
-    static let orange = Color(hex: 0xFF8A3D)
+    static let red = Color(hex: 0xE3202D)
+    static let redDeep = Color(hex: 0xB0131E)
+    static let green = Color(hex: 0x23A669)
+    static let greenDeep = Color(hex: 0x178350)
+    static let gold = Color(hex: 0xF2B035)
+    static let goldDeep = Color(hex: 0xCB8A10)
+    static let blue = Color(hex: 0x3461F0)
+    static let orange = Color(hex: 0xFF7A3D)
 
-    static let bg = Color.adaptive(light: 0xF8F4EC, dark: 0x111114)
-    static let card = Color.adaptive(light: 0xFFFFFF, dark: 0x1D1D22)
-    static let ink = Color.adaptive(light: 0x1E1E22, dark: 0xF4F1EA)
-    static let muted = Color.adaptive(light: 0x6C6A72, dark: 0xA3A1AA)
-    static let line = Color.adaptive(light: 0xE6DFD2, dark: 0x2E2E35)
-    static let soft = Color.adaptive(light: 0xF0EADF, dark: 0x26262C)
+    static let bg = Color.adaptive(light: 0xF6F1E8, dark: 0x0F0F12)
+    static let card = Color.adaptive(light: 0xFFFFFF, dark: 0x1A1A1F)
+    static let ink = Color.adaptive(light: 0x17171A, dark: 0xF4F1EB)
+    static let muted = Color.adaptive(light: 0x65636D, dark: 0xA3A1AB)
+    static let line = Color.adaptive(light: 0xE9E2D5, dark: 0x2B2B32)
+    static let soft = Color.adaptive(light: 0xEFE8DA, dark: 0x25252B)
+
+    static var redGradient: LinearGradient {
+        LinearGradient(colors: [Color(hex: 0xF03A46), Color(hex: 0xC8101E)], startPoint: .top, endPoint: .bottom)
+    }
 }
 
 extension Font {
-    static func rounded(_ style: Font.TextStyle, _ weight: Font.Weight = .regular) -> Font {
-        .system(style, design: .rounded, weight: weight)
+    /// Clean grotesk text (SF Pro) used everywhere in the UI.
+    static func ui(_ style: Font.TextStyle, _ weight: Font.Weight = .regular) -> Font {
+        .system(style, design: .default, weight: weight)
     }
-    static func rounded(size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+    static func ui(size: CGFloat, _ weight: Font.Weight = .regular) -> Font {
+        .system(size: size, weight: weight, design: .default)
+    }
+    /// Editorial serif used for Swiss German phrases and big headlines.
+    static func display(_ size: CGFloat, _ weight: Font.Weight = .bold) -> Font {
+        .system(size: size, weight: weight, design: .serif)
+    }
+    /// Numerals with a friendly rounded feel.
+    static func numeric(_ size: CGFloat, _ weight: Font.Weight = .heavy) -> Font {
         .system(size: size, weight: weight, design: .rounded)
     }
 }
 
-/// Chunky, tactile button like the best learning apps.
+// MARK: - Buttons
+
+/// Primary button: confident gradient, soft coloured shadow, springy press.
 struct ChunkyButtonStyle: ButtonStyle {
-    var color: Color = Theme.red
-    var deep: Color = Theme.redDeep
+    var color: Color = Color(hex: 0xF03A46)
+    var deep: Color = Color(hex: 0xC8101E)
     var textColor: Color = .white
     var disabled = false
 
     func makeBody(configuration: Configuration) -> some View {
         let pressed = configuration.isPressed && !disabled
+        let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
         configuration.label
-            .font(.rounded(.headline, .bold))
+            .font(.ui(.headline, .bold))
+            .tracking(0.3)
             .foregroundStyle(disabled ? Theme.muted : textColor)
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
+            .padding(.vertical, 17)
             .background(
-                ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(disabled ? Theme.line : deep)
-                        .offset(y: pressed ? 0 : 4)
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(disabled ? Theme.soft : color)
-                        .offset(y: pressed ? 4 : 0)
-                }
+                shape.fill(disabled
+                           ? AnyShapeStyle(Theme.soft)
+                           : AnyShapeStyle(LinearGradient(colors: [color, deep], startPoint: .top, endPoint: .bottom)))
             )
-            .padding(.bottom, 4)
-            .offset(y: pressed ? 2 : 0)
-            .animation(.easeOut(duration: 0.08), value: pressed)
+            .overlay(shape.strokeBorder(LinearGradient(colors: [.white.opacity(disabled ? 0 : 0.45), .clear],
+                                                        startPoint: .top, endPoint: .center), lineWidth: 1))
+            .shadow(color: disabled ? .clear : deep.opacity(0.32), radius: pressed ? 4 : 14, y: pressed ? 2 : 8)
+            .scaleEffect(pressed ? 0.975 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: pressed)
             .contentShape(Rectangle())
     }
 }
 
 extension ButtonStyle where Self == ChunkyButtonStyle {
     static var chunky: ChunkyButtonStyle { ChunkyButtonStyle() }
-    static var chunkyGreen: ChunkyButtonStyle { ChunkyButtonStyle(color: Theme.green, deep: Theme.greenDeep) }
+    static var chunkyGreen: ChunkyButtonStyle { ChunkyButtonStyle(color: Color(hex: 0x2DBE7B), deep: Theme.greenDeep) }
     static func chunky(disabled: Bool) -> ChunkyButtonStyle { ChunkyButtonStyle(disabled: disabled) }
 }
+
+// MARK: - Cards & surfaces
 
 struct CardModifier: ViewModifier {
     var padding: CGFloat = 16
     func body(content: Content) -> some View {
         content
             .padding(self.padding)
-            .background(Theme.card, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(Theme.line, lineWidth: 1.5))
+            .background(Theme.card, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 24, style: .continuous).strokeBorder(Theme.line.opacity(0.7), lineWidth: 1))
+            .shadow(color: .black.opacity(0.06), radius: 18, y: 8)
     }
 }
 
 extension View {
     func card(padding: CGFloat = 16) -> some View { modifier(CardModifier(padding: padding)) }
+
+    /// Section title style.
+    func eyebrow(_ color: Color = Theme.muted) -> some View {
+        self.font(.ui(.caption, .bold)).tracking(1.2).textCase(.uppercase).foregroundStyle(color)
+    }
+}
+
+/// Soft tinted circle behind an SF Symbol.
+struct IconBadge: View {
+    let systemName: String
+    var tint: Color = Theme.red
+    var size: CGFloat = 44
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: size * 0.42, weight: .bold))
+            .symbolRenderingMode(.hierarchical)
+            .foregroundStyle(tint)
+            .frame(width: size, height: size)
+            .background(tint.opacity(0.13), in: RoundedRectangle(cornerRadius: size * 0.34, style: .continuous))
+    }
 }
 
 /// Simple wrapping layout for word tiles.

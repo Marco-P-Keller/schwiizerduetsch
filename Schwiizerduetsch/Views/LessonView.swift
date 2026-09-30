@@ -32,7 +32,7 @@ final class LessonModel: ObservableObject {
         self.mode = mode
         self.steps = Self.plan(lesson: lesson, mode: mode)
         #if DEBUG
-        // Screenshot helper: `-kind choice|listen|build|match` starts on that exercise type.
+        // Screenshot helper: `-kind choice|build|match` starts on that exercise type.
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "-kind"), i + 1 < args.count {
             let want = args[i + 1]
@@ -58,7 +58,10 @@ final class LessonModel: ObservableObject {
         for (i, p) in ph.shuffled().enumerated() {
             ex.append(Step(kind: .choice(p, i % 2 == 0 ? .chToTr : .trToCh)))
         }
-        for p in ph.shuffled().prefix(3) { ex.append(Step(kind: .choice(p, .listen))) }
+        // Listening exercises only exist when real recordings are available.
+        for p in ph.filter({ SpeechService.shared.hasRecording(for: $0.ch) }).shuffled().prefix(3) {
+            ex.append(Step(kind: .choice(p, .listen)))
+        }
         for p in ph.filter({ $0.words.count >= 2 && $0.words.count <= 7 }).shuffled().prefix(3) {
             ex.append(Step(kind: .build(p)))
         }
@@ -80,7 +83,6 @@ final class LessonModel: ObservableObject {
             if wasCorrect { correct += 1 }
             else if let phrase {
                 mistake(phrase.id)
-                // give the learner a second chance at the end
                 if !retried.contains(phrase.id) {
                     retried.insert(phrase.id)
                     steps.append(Step(kind: .choice(phrase, .trToCh)))
@@ -108,9 +110,12 @@ struct LessonView: View {
         _model = StateObject(wrappedValue: LessonModel(lesson: lesson, mode: mode))
     }
 
+    private var tint: Color { Curriculum.unit(lesson.unitID)?.color ?? Theme.red }
+
     var body: some View {
         ZStack {
             Theme.bg.ignoresSafeArea()
+            LinearGradient(colors: [tint.opacity(0.10), .clear], startPoint: .top, endPoint: .center).ignoresSafeArea()
             if model.finished {
                 CompletionView(model: model, lesson: lesson, mode: mode, onClose: close, onUpsell: upsell)
                     .transition(.opacity)
@@ -127,7 +132,7 @@ struct LessonView: View {
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: model.index)
+        .animation(.spring(response: 0.42, dampingFraction: 0.88), value: model.index)
         .animation(.easeInOut(duration: 0.3), value: model.finished)
         .alert(tr("Lektion abbrechen?", "Quit lesson?"), isPresented: $confirmExit) {
             Button(tr("Weiter lernen", "Keep learning"), role: .cancel) {}
@@ -140,21 +145,21 @@ struct LessonView: View {
     private var topBar: some View {
         HStack(spacing: 14) {
             Button { confirmExit = true } label: {
-                Image(systemName: "xmark").font(.system(size: 18, weight: .bold)).foregroundStyle(Theme.muted)
-                    .frame(width: 36, height: 36)
+                Image(systemName: "xmark").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.muted)
+                    .frame(width: 38, height: 38).background(Theme.soft, in: Circle())
             }
             .accessibilityLabel(tr("Schliessen", "Close"))
-            ProgressBar(value: model.progress, color: Theme.green)
+            ProgressBar(value: model.progress, color: tint, height: 12)
             Text("\(min(model.index + 1, model.steps.count))/\(model.steps.count)")
-                .font(.rounded(.caption, .bold)).foregroundStyle(Theme.muted).monospacedDigit()
+                .font(.numeric(13)).foregroundStyle(Theme.muted).monospacedDigit().frame(minWidth: 40, alignment: .trailing)
         }
-        .padding(.horizontal, 16).padding(.top, 8).padding(.bottom, 4)
+        .padding(.horizontal, 18).padding(.top, 8).padding(.bottom, 6)
     }
 
     @ViewBuilder private func stepView(_ step: Step) -> some View {
         switch step.kind {
         case .learn(let p):
-            LearnCard(phrase: p) { model.done(step: step, wasCorrect: nil) }
+            LearnCard(phrase: p, tint: tint) { model.done(step: step, wasCorrect: nil) }
         case .choice(let p, let kind):
             ChoiceExercise(phrase: p, kind: kind) { ok in model.done(step: step, wasCorrect: ok, phrase: p) }
         case .build(let p):
@@ -193,32 +198,43 @@ struct LessonView: View {
 struct ProgressBar: View {
     var value: Double
     var color: Color
+    var track: Color = Theme.line
+    var height: CGFloat = 12
     var body: some View {
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Theme.line)
-                Capsule().fill(color)
-                    .frame(width: max(14, geo.size.width * value))
-                    .animation(.spring(response: 0.4), value: value)
+                Capsule().fill(track)
+                Capsule()
+                    .fill(LinearGradient(colors: [color, color.shaded(0.2)], startPoint: .leading, endPoint: .trailing))
+                    .frame(width: max(height, geo.size.width * value))
+                    .overlay(alignment: .top) {
+                        Capsule().fill(.white.opacity(0.3)).frame(height: height * 0.3).padding(.horizontal, height * 0.4).padding(.top, height * 0.15)
+                    }
+                    .animation(.spring(response: 0.5), value: value)
             }
         }
-        .frame(height: 14)
+        .frame(height: height)
     }
 }
 
+/// Only visible when a real recording exists for the phrase.
 struct SpeakButton: View {
     let text: String
     var size: CGFloat = 52
     var slow = false
     var body: some View {
-        Button { SpeechService.shared.speak(text, slow: slow) } label: {
-            Image(systemName: slow ? "tortoise.fill" : "speaker.wave.2.fill")
-                .font(.system(size: size * 0.42, weight: .bold))
-                .foregroundStyle(.white)
-                .frame(width: size, height: size)
-                .background(slow ? Theme.orange : Theme.blue, in: Circle())
+        if SpeechService.shared.hasRecording(for: text) {
+            Button { SpeechService.shared.speak(text, slow: slow) } label: {
+                Image(systemName: slow ? "tortoise.fill" : "speaker.wave.2.fill")
+                    .font(.system(size: size * 0.42, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: size, height: size)
+                    .background(LinearGradient(colors: slow ? [Theme.orange, Theme.orange.shaded(0.2)] : [Theme.blue, Theme.blue.shaded(0.25)],
+                                               startPoint: .top, endPoint: .bottom), in: Circle())
+                    .shadow(color: (slow ? Theme.orange : Theme.blue).opacity(0.35), radius: 8, y: 4)
+            }
+            .accessibilityLabel(slow ? tr("Langsam anhören", "Listen slowly") : tr("Anhören", "Listen"))
         }
-        .accessibilityLabel(slow ? tr("Langsam anhören", "Listen slowly") : tr("Anhören", "Listen"))
     }
 }
 
@@ -231,28 +247,36 @@ struct FeedbackBar: View {
     private static let praiseDE = ["Genau!", "Super!", "Stark!", "Mega!", "Perfekt!", "Lässig!"]
     private static let praiseEN = ["Exactly!", "Great!", "Nice!", "Awesome!", "Perfect!", "Brilliant!"]
     @State private var praise = 0
+    private var tone: Color { correct ? Theme.green : Theme.red }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                Image(systemName: correct ? "checkmark.circle.fill" : "xmark.circle.fill").font(.title2)
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: correct ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .font(.system(size: 30)).foregroundStyle(tone)
+                VStack(alignment: .leading, spacing: 3) {
                     Text(correct
                          ? (AppLanguage.current == .de ? Self.praiseDE : Self.praiseEN)[praise % 6]
                          : tr("Nicht ganz – so ist es richtig:", "Not quite – the answer is:"))
-                        .font(.rounded(.headline, .heavy))
-                    if !correct { Text(answer).font(.rounded(.subheadline, .semibold)) }
-                    if let note, correct { Text(note).font(.rounded(.footnote)).opacity(0.9) }
+                        .font(.ui(.headline, .heavy)).foregroundStyle(tone)
+                    if !correct { Text(answer).font(.display(19, .semibold)).foregroundStyle(Theme.ink) }
+                    if let note, correct { Text(note).font(.ui(.footnote)).foregroundStyle(Theme.muted) }
                 }
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(correct ? Theme.greenDeep : Theme.redDeep)
             Button(action: onContinue) { Text(tr("Weiter", "Continue")).textCase(.uppercase) }
-                .buttonStyle(ChunkyButtonStyle(color: correct ? Theme.green : Theme.red, deep: correct ? Theme.greenDeep : Theme.redDeep))
+                .buttonStyle(ChunkyButtonStyle(color: correct ? Color(hex: 0x2DBE7B) : Color(hex: 0xF03A46),
+                                               deep: correct ? Theme.greenDeep : Theme.redDeep))
         }
-        .padding(.horizontal, 20).padding(.top, 16).padding(.bottom, 8)
+        .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 10)
         .frame(maxWidth: .infinity)
-        .background((correct ? Theme.green : Theme.red).opacity(0.14).background(Theme.bg))
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous)
+                .fill(Theme.card)
+                .overlay(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28, style: .continuous).fill(tone.opacity(0.09)))
+                .shadow(color: .black.opacity(0.14), radius: 24, y: -4)
+                .ignoresSafeArea(edges: .bottom)
+        )
         .onAppear {
             praise = Int.random(in: 0..<6)
             UINotificationFeedbackGenerator().notificationOccurred(correct ? .success : .error)
@@ -280,13 +304,16 @@ struct CompletionView: View {
 
     var body: some View {
         ZStack {
+            MountainScene().frame(height: 330).frame(maxHeight: .infinity, alignment: .top).ignoresSafeArea()
             ConfettiView()
             VStack(spacing: 22) {
-                Spacer()
-                Text(model.mistakes.isEmpty ? "🏆" : "🎉").font(.system(size: 88))
-                    .scaleEffect(appear ? 1 : 0.3).animation(.spring(response: 0.5, dampingFraction: 0.55), value: appear)
+                Spacer(minLength: 40)
+                Text(model.mistakes.isEmpty ? "🏆" : "🎉").font(.system(size: 92))
+                    .scaleEffect(appear ? 1 : 0.3).rotationEffect(.degrees(appear ? 0 : -20))
+                    .shadow(color: .black.opacity(0.2), radius: 14, y: 8)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.55), value: appear)
                 Text(mode == .lesson ? tr("Lektion geschafft!", "Lesson complete!") : tr("Übung geschafft!", "Practice complete!"))
-                    .font(.rounded(.largeTitle, .heavy)).multilineTextAlignment(.center)
+                    .font(.display(34, .heavy)).foregroundStyle(Theme.ink).multilineTextAlignment(.center)
                 HStack(spacing: 12) {
                     stat(icon: "bolt.fill", color: Theme.gold, value: "+\(model.xp)", label: "XP")
                     stat(icon: "target", color: Theme.green, value: "\(Int((model.accuracy * 100).rounded()))%", label: tr("Treffer", "Accuracy"))
@@ -294,13 +321,13 @@ struct CompletionView: View {
                 }
                 if store.goalProgress >= 1 {
                     Label(tr("Tagesziel erreicht!", "Daily goal reached!"), systemImage: "checkmark.seal.fill")
-                        .font(.rounded(.headline, .bold)).foregroundStyle(Theme.green)
+                        .font(.ui(.headline, .bold)).foregroundStyle(Theme.green)
                 }
                 if nextLocked, let next = store.nextLesson, let unit = Curriculum.unit(next.unitID) {
                     VStack(spacing: 6) {
-                        Text("\(unit.emoji) " + unit.title).font(.rounded(.headline, .heavy))
+                        Text("\(unit.emoji) " + unit.title).font(.display(20, .heavy)).foregroundStyle(Theme.ink)
                         Text(tr("Das nächste Kapitel ist Premium. Teste es 7 Tage gratis.", "The next chapter is Premium. Try it free for 7 days."))
-                            .font(.rounded(.footnote)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
+                            .font(.ui(.footnote)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
                     }
                     .frame(maxWidth: .infinity).card()
                 }
@@ -309,7 +336,7 @@ struct CompletionView: View {
                     Button(action: onUpsell) { Text(tr("Premium entdecken", "Discover Premium")).textCase(.uppercase) }
                         .buttonStyle(.chunky)
                     Button(tr("Nicht jetzt", "Not now"), action: onClose)
-                        .font(.rounded(.subheadline, .bold)).foregroundStyle(Theme.muted)
+                        .font(.ui(.subheadline, .bold)).foregroundStyle(Theme.muted)
                 } else {
                     Button(action: onClose) { Text(tr("Weiter", "Continue")).textCase(.uppercase) }
                         .buttonStyle(.chunkyGreen)
@@ -327,8 +354,8 @@ struct CompletionView: View {
     private func stat(icon: String, color: Color, value: String, label: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: icon).font(.title3).foregroundStyle(color)
-            Text(value).font(.rounded(.title3, .heavy)).foregroundStyle(Theme.ink)
-            Text(label).font(.rounded(.caption, .semibold)).foregroundStyle(Theme.muted)
+            Text(value).font(.numeric(22)).foregroundStyle(Theme.ink)
+            Text(label).font(.ui(.caption, .semibold)).foregroundStyle(Theme.muted)
         }
         .frame(maxWidth: .infinity).card(padding: 14)
     }

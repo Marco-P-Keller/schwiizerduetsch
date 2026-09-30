@@ -4,48 +4,68 @@ import SwiftUI
 
 struct LearnCard: View {
     let phrase: Phrase
+    var tint: Color = Theme.red
     var onContinue: () -> Void
     @EnvironmentObject var store: ProgressStore
+    @State private var appear = false
 
     var body: some View {
         VStack(spacing: 0) {
+            GeometryReader { geo in
             ScrollView {
-                VStack(spacing: 22) {
-                    Text(tr("Neu", "New")).font(.rounded(.caption, .heavy)).textCase(.uppercase)
-                        .padding(.horizontal, 12).padding(.vertical, 5)
-                        .background(Theme.blue.opacity(0.14), in: Capsule()).foregroundStyle(Theme.blue)
-                        .padding(.top, 24)
-                    VStack(spacing: 16) {
+                VStack(spacing: 20) {
+                    Text(tr("Neu", "New")).eyebrow(tint)
+                        .padding(.horizontal, 14).padding(.vertical, 6)
+                        .background(tint.opacity(0.12), in: Capsule())
+                    VStack(spacing: 18) {
+                        Image(systemName: "quote.opening").font(.system(size: 26, weight: .bold)).foregroundStyle(tint.opacity(0.4)).frame(height: 30)
                         Text(phrase.ch)
-                            .font(.rounded(size: 36, .heavy)).foregroundStyle(Theme.ink)
-                            .multilineTextAlignment(.center).minimumScaleFactor(0.6)
-                        HStack(spacing: 14) {
-                            SpeakButton(text: phrase.ch)
-                            SpeakButton(text: phrase.ch, size: 44, slow: true)
+                            .font(.display(38, .bold)).foregroundStyle(Theme.ink)
+                            .multilineTextAlignment(.center).minimumScaleFactor(0.6).fixedSize(horizontal: false, vertical: true)
+                        if SpeechService.shared.hasRecording(for: phrase.ch) {
+                            HStack(spacing: 14) {
+                                SpeakButton(text: phrase.ch)
+                                SpeakButton(text: phrase.ch, size: 44, slow: true)
+                            }
                         }
-                        Divider()
+                        Capsule().fill(Theme.line).frame(width: 44, height: 3)
                         Text(phrase.translation)
-                            .font(.rounded(.title3, .semibold)).foregroundStyle(Theme.muted)
+                            .font(.ui(.title3, .medium)).foregroundStyle(Theme.muted)
                             .multilineTextAlignment(.center)
                     }
-                    .frame(maxWidth: .infinity).card(padding: 24)
-                    if let note = phrase.note {
-                        HStack(alignment: .top, spacing: 10) {
-                            Text("💡").font(.title3)
-                            Text(note).font(.rounded(.subheadline)).foregroundStyle(Theme.ink)
+                    .frame(maxWidth: .infinity).padding(.vertical, 30).padding(.horizontal, 22)
+                    .background(
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 32, style: .continuous).fill(Theme.card)
+                            RoundedRectangle(cornerRadius: 32, style: .continuous)
+                                .fill(LinearGradient(colors: [tint.opacity(0.10), .clear], startPoint: .top, endPoint: .center))
                         }
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Theme.gold.opacity(0.16), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    )
+                    .overlay(RoundedRectangle(cornerRadius: 32, style: .continuous).strokeBorder(Theme.line.opacity(0.8), lineWidth: 1))
+                    .shadow(color: tint.opacity(0.14), radius: 26, y: 14)
+                    .scaleEffect(appear ? 1 : 0.94).opacity(appear ? 1 : 0)
+                    if let note = phrase.note {
+                        HStack(alignment: .top, spacing: 12) {
+                            Text("💡").font(.title3)
+                            Text(note).font(.ui(.subheadline)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Theme.gold.opacity(0.15), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(Theme.gold.opacity(0.25), lineWidth: 1))
+                        .opacity(appear ? 1 : 0).offset(y: appear ? 0 : 12)
                     }
                 }
                 .padding(.horizontal, 20)
+                .frame(minHeight: geo.size.height, alignment: .center)
+            }
             }
             Button(action: onContinue) { Text(tr("Weiter", "Continue")).textCase(.uppercase) }
                 .buttonStyle(.chunky)
-                .padding(.horizontal, 20).padding(.bottom, 8)
+                .padding(.horizontal, 20).padding(.bottom, 8).padding(.top, 6)
         }
         .onAppear {
-            if store.state.autoplay {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.82)) { appear = true }
+            if store.state.autoplay, SpeechService.shared.hasRecording(for: phrase.ch) {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { SpeechService.shared.speak(phrase.ch) }
             }
         }
@@ -58,7 +78,6 @@ struct ChoiceExercise: View {
     let phrase: Phrase
     let kind: ChoiceKind
     var onDone: (Bool) -> Void
-    @EnvironmentObject var store: ProgressStore
     @State private var options: [String]
     @State private var selected: String?
 
@@ -90,16 +109,16 @@ struct ChoiceExercise: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(prompt).font(.rounded(.title3, .heavy)).foregroundStyle(Theme.ink)
+                    Text(prompt).eyebrow()
                     switch kind {
                     case .chToTr:
                         HStack(spacing: 14) {
                             SpeakButton(text: phrase.ch, size: 46)
-                            Text(phrase.ch).font(.rounded(.title2, .bold)).foregroundStyle(Theme.ink)
+                            Text(phrase.ch).font(.display(30, .bold)).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
                         }
                     case .trToCh:
-                        Text(phrase.translation).font(.rounded(.title2, .bold)).foregroundStyle(Theme.ink)
-                            .padding(16).frame(maxWidth: .infinity, alignment: .leading).card(padding: 0)
+                        Text(phrase.translation).font(.ui(.title2, .bold)).foregroundStyle(Theme.ink)
+                            .padding(20).frame(maxWidth: .infinity, alignment: .leading).card(padding: 0)
                     case .listen:
                         HStack(spacing: 16) {
                             SpeakButton(text: phrase.ch, size: 76)
@@ -107,7 +126,7 @@ struct ChoiceExercise: View {
                         }
                         .frame(maxWidth: .infinity)
                     }
-                    VStack(spacing: 10) {
+                    VStack(spacing: 12) {
                         ForEach(options, id: \.self) { opt in optionButton(opt) }
                     }
                 }
@@ -120,7 +139,7 @@ struct ChoiceExercise: View {
                 .transition(.move(edge: .bottom))
             }
         }
-        .animation(.spring(response: 0.35), value: selected)
+        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: selected)
         .onAppear {
             if kind == .listen { DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { SpeechService.shared.speak(phrase.ch) } }
         }
@@ -138,26 +157,35 @@ struct ChoiceExercise: View {
         let isSelected = selected == opt
         let isCorrect = opt == correctText
         let revealed = selected != nil
-        let border: Color = revealed ? (isCorrect ? Theme.green : (isSelected ? Theme.red : Theme.line)) : Theme.line
-        let bg: Color = revealed ? (isCorrect ? Theme.green.opacity(0.14) : (isSelected ? Theme.red.opacity(0.12) : Theme.card)) : Theme.card
+        let tone: Color = revealed ? (isCorrect ? Theme.green : (isSelected ? Theme.red : Theme.line)) : Theme.line
+        let bg: Color = revealed ? (isCorrect ? Theme.green.opacity(0.12) : (isSelected ? Theme.red.opacity(0.10) : Theme.card)) : Theme.card
         return Button {
             guard selected == nil else { return }
             selected = opt
         } label: {
-            HStack {
-                Text(opt).font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
+            HStack(spacing: 12) {
+                Text(opt).font(kind == .chToTr ? .ui(.body, .semibold) : .display(19, .semibold)).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
                 if revealed && (isCorrect || isSelected) {
                     Image(systemName: isCorrect ? "checkmark.circle.fill" : "xmark.circle.fill")
-                        .foregroundStyle(isCorrect ? Theme.green : Theme.red)
+                        .font(.title3).foregroundStyle(isCorrect ? Theme.green : Theme.red).transition(.scale)
                 }
             }
-            .padding(16)
-            .background(bg, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(border, lineWidth: 2))
+            .padding(.horizontal, 18).padding(.vertical, 17)
+            .background(bg, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).strokeBorder(tone, lineWidth: revealed && (isCorrect || isSelected) ? 2 : 1.2))
+            .shadow(color: .black.opacity(revealed ? 0 : 0.05), radius: 10, y: 5)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OptionPressStyle())
         .disabled(revealed)
+    }
+}
+
+struct OptionPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -187,30 +215,31 @@ struct BuildExercise: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    Text(tr("Übersetze ins Schwiizerdüütsch", "Translate into Swiss German"))
-                        .font(.rounded(.title3, .heavy)).foregroundStyle(Theme.ink)
-                    Text(phrase.translation).font(.rounded(.title2, .bold)).foregroundStyle(Theme.ink)
-                        .padding(16).frame(maxWidth: .infinity, alignment: .leading).card(padding: 0)
+                    Text(tr("Übersetze ins Schwiizerdüütsch", "Translate into Swiss German")).eyebrow()
+                    Text(phrase.translation).font(.ui(.title2, .bold)).foregroundStyle(Theme.ink)
+                        .padding(20).frame(maxWidth: .infinity, alignment: .leading).card(padding: 0)
 
-                    // answer area
                     ZStack(alignment: .topLeading) {
                         VStack(spacing: 0) {
                             ForEach(0..<2, id: \.self) { _ in
-                                Spacer().frame(height: 52)
+                                Spacer().frame(height: 54)
                                 Rectangle().fill(Theme.line).frame(height: 2)
                             }
                         }
                         FlowLayout(spacing: 8) {
                             ForEach(answer) { t in
                                 chip(t).onTapGesture { if result == nil { move(t, toAnswer: false) } }
+                                    .transition(.scale.combined(with: .opacity))
                             }
                         }
+                        .padding(.top, 4)
                     }
-                    .frame(minHeight: 108, alignment: .topLeading)
+                    .frame(minHeight: 112, alignment: .topLeading)
 
                     FlowLayout(spacing: 8) {
                         ForEach(bank) { t in
                             chip(t).onTapGesture { if result == nil { move(t, toAnswer: true) } }
+                                .transition(.scale.combined(with: .opacity))
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -229,24 +258,24 @@ struct BuildExercise: View {
                 .padding(.horizontal, 20).padding(.bottom, 8)
             }
         }
-        .animation(.spring(response: 0.35), value: result)
+        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: result)
     }
 
     private func chip(_ t: Token) -> some View {
         Text(t.text)
-            .font(.rounded(.body, .semibold)).foregroundStyle(Theme.ink)
-            .padding(.horizontal, 14).padding(.vertical, 10)
+            .font(.display(19, .semibold)).foregroundStyle(Theme.ink)
+            .padding(.horizontal, 15).padding(.vertical, 11)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .fill(Theme.card)
-                    .shadow(color: Theme.line, radius: 0, y: 3)
+                    .shadow(color: .black.opacity(0.10), radius: 0, y: 3)
             )
-            .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(Theme.line, lineWidth: 2))
+            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Theme.line, lineWidth: 1.2))
             .accessibilityAddTraits(.isButton)
     }
 
     private func move(_ t: Token, toAnswer: Bool) {
-        withAnimation(.spring(response: 0.3)) {
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.78)) {
             if toAnswer, let i = bank.firstIndex(of: t) { bank.remove(at: i); answer.append(t) }
             else if let i = answer.firstIndex(of: t) { answer.remove(at: i); bank.append(t) }
         }
@@ -281,10 +310,10 @@ struct MatchExercise: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Text(tr("Finde die Paare", "Match the pairs")).font(.rounded(.title3, .heavy)).foregroundStyle(Theme.ink)
+                    Text(tr("Finde die Paare", "Match the pairs")).eyebrow()
                     HStack(alignment: .top, spacing: 12) {
-                        VStack(spacing: 10) { ForEach(left) { p in tile(p, text: p.ch, isLeft: true) } }
-                        VStack(spacing: 10) { ForEach(right) { p in tile(p, text: p.translation, isLeft: false) } }
+                        VStack(spacing: 12) { ForEach(left) { p in tile(p, text: p.ch, isLeft: true) } }
+                        VStack(spacing: 12) { ForEach(right) { p in tile(p, text: p.translation, isLeft: false) } }
                     }
                 }
                 .padding(20)
@@ -294,45 +323,49 @@ struct MatchExercise: View {
                     .transition(.move(edge: .bottom))
             }
         }
-        .animation(.spring(response: 0.35), value: finished)
+        .animation(.spring(response: 0.38, dampingFraction: 0.85), value: finished)
     }
 
     private func tile(_ p: Phrase, text: String, isLeft: Bool) -> some View {
         let isMatched = matched.contains(p.id)
         let isSel = isLeft ? selLeft == p.id : selRight == p.id
         let isWrong = wrong.map { isLeft ? $0.0 == p.id : $0.1 == p.id } ?? false
-        let border: Color = isMatched ? Theme.green : (isWrong ? Theme.red : (isSel ? Theme.blue : Theme.line))
-        let bg: Color = isMatched ? Theme.green.opacity(0.14) : (isWrong ? Theme.red.opacity(0.12) : (isSel ? Theme.blue.opacity(0.12) : Theme.card))
+        let tone: Color = isMatched ? Theme.green : (isWrong ? Theme.red : (isSel ? Theme.blue : Theme.line))
+        let bg: Color = isMatched ? Theme.green.opacity(0.12) : (isWrong ? Theme.red.opacity(0.10) : (isSel ? Theme.blue.opacity(0.10) : Theme.card))
         return Button { tap(p, isLeft: isLeft) } label: {
-            Text(text).font(.rounded(.subheadline, .semibold)).foregroundStyle(Theme.ink)
-                .multilineTextAlignment(.center).minimumScaleFactor(0.75)
-                .frame(maxWidth: .infinity, minHeight: 64).padding(.horizontal, 8)
-                .background(bg, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).stroke(border, lineWidth: 2))
-                .opacity(isMatched ? 0.45 : 1)
+            Text(text).font(isLeft ? .display(17, .semibold) : .ui(.subheadline, .semibold)).foregroundStyle(Theme.ink)
+                .multilineTextAlignment(.center).minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, minHeight: 68).padding(.horizontal, 10)
+                .background(bg, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).strokeBorder(tone, lineWidth: isSel || isMatched || isWrong ? 2 : 1.2))
+                .shadow(color: .black.opacity(isMatched ? 0 : 0.05), radius: 8, y: 4)
+                .opacity(isMatched ? 0.5 : 1)
+                .scaleEffect(isWrong ? 0.96 : 1)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(OptionPressStyle())
         .disabled(isMatched || finished)
     }
 
     private func tap(_ p: Phrase, isLeft: Bool) {
         if isLeft {
             selLeft = p.id
-            if isLeft, !p.ch.isEmpty { SpeechService.shared.speak(p.ch) }
+            SpeechService.shared.speak(p.ch)
         } else { selRight = p.id }
+        UISelectionFeedbackGenerator().selectionChanged()
         guard let l = selLeft, let r = selRight else { return }
         if l == r {
-            matched.insert(l)
+            withAnimation(.spring) { matched.insert(l) }
             UIImpactFeedbackGenerator(style: .medium).impactOccurred()
             selLeft = nil; selRight = nil
             if matched.count == phrases.count { finished = true }
         } else {
             mistakes += 1
             onMistake(l)
-            wrong = (l, r)
+            withAnimation(.spring(response: 0.25)) { wrong = (l, r) }
             UINotificationFeedbackGenerator().notificationOccurred(.error)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                wrong = nil; selLeft = nil; selRight = nil
+                withAnimation { wrong = nil }
+                selLeft = nil; selRight = nil
             }
         }
     }
